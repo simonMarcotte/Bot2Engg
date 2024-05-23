@@ -37,28 +37,27 @@ async def guessinggame(interaction: discord.Interaction, arg1: int, arg2: int):
 async def on_message(message):
 
     await client.process_commands(message)
-
-    #initialize previousID to something random if on the first count
-    #make sure current and previous ID dont match, if it does, error
-    #make sure that the number sent is the one we are looking for, if not, error
-    #set a new previous user if the current user is not the bot
-    #Have the bot send the next message if toggled on
-       
+ 
     ###############COUNTING GAME###############
     if message.channel.id == 1105239862631735316 and message.content.isnumeric():
         
+        #initialize previousID to something random if on the first count
         if client.previousNum == 0: 
             client.prevUserID = message.author.id + 1
-       
+
+        #make sure current and previous ID dont match, if it does, error
         if message.author.id != client.prevUserID:
            
+            #make sure that the number sent is the one we are looking for, if not, error
             if int(message.content) == (client.previousNum + 1):
                 await message.add_reaction("✅")
                 client.previousNum = int(message.content)
                 
+                #set a new previous user if the current user is not the bot
                 if message.author.id != client.user.id:
                     client.prevUserID = message.author.id
 
+                    #Have the bot send the next message if toggled on
                     if client.countToggle:
                             nextNum = int(message.content) + 1
                             await message.channel.send(nextNum)
@@ -79,7 +78,7 @@ async def on_message(message):
         endMessage = message.content.split(" ", 1)[1]
         guessNum =[int(i) for i in endMessage.split()]
                         
-
+        #Check format
         if guessNum[0] > guessNum[1]:
             await message.channel.send("Oops, wrong format. Make sure there are 2 numbers separated by a space.")
         else:
