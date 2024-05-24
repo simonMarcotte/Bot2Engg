@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import subprocess
 import argparse
+import time
 
 class BotUpdate:
     
@@ -48,6 +49,9 @@ class BotUpdate:
             self.process.wait()
 
     def transfer_files(self):
+        print("Cleaning Old Files...")
+        self.run_command(self.cleanup)
+        time.sleep(0.5)
         print("Transferring files...")
         combined_scp_command = " && ".join(self.scp_commands)
         subprocess.run(combined_scp_command, shell=True)
