@@ -1,5 +1,6 @@
 import discord
 import random
+import math
 import asyncio
 #from discord import app_commands
 from discord.ext import commands
@@ -13,10 +14,14 @@ intents = discord.Intents.default()
 intents.message_content = True
 MY_SERVER = discord.Object(id=1105192418661380166)
 
-client = commands.Bot(command_prefix='?', intents=intents)
+COMMAND_PREFIX = 'b2e '
+
+client = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
 
 client.countToggle = False
 client.previousNum = 0
+
+COUNTING_CHANNELS = [1105239862631735316]
 
 
 @app_commands.command(name='sync', description='Owner only')
@@ -35,11 +40,12 @@ async def guessinggame(interaction: discord.Interaction, arg1: int, arg2: int):
 
 @client.event 
 async def on_message(message):
+    """Once a message is sent"""
 
     await client.process_commands(message)
  
     ###############COUNTING GAME###############
-    if message.channel.id == 1105239862631735316 and message.content.isnumeric():
+    if message.channel.id in COUNTING_CHANNELS and message.content.isnumeric():
         
         #initialize previousID to something random if on the first count
         if client.previousNum == 0: 
@@ -72,60 +78,10 @@ async def on_message(message):
             await message.channel.send("Oh well, the next number is 1.")
             client.previousNum = 0
 
-    ###############GUESSING GAME###############
-    if message.content.startswith('?guess'):
-
-        endMessage = message.content.split(" ", 1)[1]
-        guessNum =[int(i) for i in endMessage.split()]
-                        
-        #Check format
-        if guessNum[0] > guessNum[1]:
-            await message.channel.send("Oops, wrong format. Make sure there are 2 numbers separated by a space.")
-        else:
-            await message.channel.send(f'Guess a number between {guessNum[0]} and {guessNum[1]}')
-
-        def is_correct(m):
-            return m.author == message.author and m.content.isdigit()
-
-        answer = random.randint(guessNum[0], guessNum[1])
-
-        if guessNum[1] < 10:
-                numGuesses = 3
-        elif guessNum[1] < 50:
-                numGuesses = 5
-        elif guessNum[1] < 100:
-                numGuesses = 7
-        else:
-            numGuesses = 10
-        
-        await message.channel.send(f'You have {numGuesses} guesses. Please make your first guess, and good luck.')
-        
-        guessesUsed = 1
-
-        while True:
-            if numGuesses == 0:
-                await message.channel.send(f':sob: You ran out of guesses. The correct answer was {answer}.')
-                break
-            try:
-                guess = await client.wait_for('message', check=is_correct, timeout=20.0)
-            except asyncio.TimeoutError:
-                return await message.channel.send(f'Sorry, you took too long it was {answer}.')
-            
-            if int(guess.content) == answer:
-                await guess.add_reaction("✅")
-                return await message.channel.send(f'You are right! You guessed it in {guessesUsed} guess(es)!')
-            else:
-                if int(guess.content) > answer:
-                    guessStatus = "high"
-                elif int(guess.content) < answer:
-                    guessStatus = "low"
-                await guess.add_reaction("❌")
-                numGuesses = numGuesses - 1
-                await message.channel.send(f'Wrong. That guess was too {guessStatus}. You have {numGuesses} guesses remaining.')
-                guessesUsed = guessesUsed + 1
 
 @client.event
 async def on_ready():
+    """The bot is ready to recieve commands"""
     print(f'Logged in as {client.user.display_name}')
     
 '''@client.event
@@ -138,47 +94,95 @@ async def on_reaction_add(reaction, user):
       if user.id != client.user.id:
         await user.add_roles(Role)'''
 
+
 """CLIENT COMMANDS BEGIN HERE"""
+
+@client.command()
+###############GUESSING GAME###############
+async def guess(ctx, *args):
+    """
+    GUESSING GAME
+    Give the bot a range from a low to high number, and see if you can
+    guess the number within the specified guesses!
+    """
+
+    low, high =[int(i) for i in args]
+                    
+    #Check format
+    if low > high:
+        await ctx.send("Oops, wrong format. Make sure there are 2 numbers separated by a space.")
+    else:
+        await ctx.send(f'Guess a number between {low} and {high}')
+
+    def is_correct(m):
+        return m.author == ctx.author and m.content.isdigit()
+
+    answer = random.randint(low, high)
+
+    numGuesses = max(math.ceil(math.log2(high - low + 1)), 1)
+    
+    await ctx.send(f'You have {numGuesses} guesses. Please make your first guess, and good luck.')
+    
+    guessesUsed = 1
+
+    while True:
+        if numGuesses == 0:
+            await ctx.send(f':sob: You ran out of guesses. The correct answer was **{answer}**.')
+            break
+        try:
+            guess = await client.wait_for('message', check=is_correct, timeout=20.0)
+        except asyncio.TimeoutError:
+            return await ctx.send(f':hourglass: Sorry, you took too long, the answer was **{answer}**.')
+        
+        if int(guess.content) == answer:
+            await guess.add_reaction("✅")
+            return await ctx.send(f':partying_face: Correct! You guessed it in {guessesUsed} guess(es)!')
+        else:
+            if int(guess.content) > answer:
+                guessStatus = "high"
+            elif int(guess.content) < answer:
+                guessStatus = "low"
+            await guess.add_reaction("❌")
+            numGuesses = numGuesses - 1
+            await ctx.send(f':exclamation: Wrong! That guess was too {guessStatus}. You have {numGuesses} guesses remaining.')
+            guessesUsed = guessesUsed + 1
+
+
 @client.command()
 async def gpa(ctx, *args):
-    ###############CALCULATES GPA###############
-    message = args.join(" ")
-    courseinfo = message.split(" ", 1)[1]
+    """Calculates GPA based off course units and letter grades"""
+    
+    course_info = " ".join(args)
+    coursearr = course_info.split(",")
+   
     gradepoints = []
-    coursecred = 0
-    coursearr = courseinfo.split(",")
+    total_units = 0
+    grades = {"F": 1.0, "D": 1.0, "C": 2.0, "B": 3.0, "A": 4.0, "-": -0.3, "+": 0.3}
+
     for course in coursearr:
-        letterToGPA = 0
-        specific = course.split()
-        for letter in specific[1]:
-            if letter == "D":
-                    letterToGPA = 1.0
-            elif letter == "C":
-                    letterToGPA = 2.0
-            elif letter == "B":
-                    letterToGPA = 3.0
-            elif letter == "A":
-                    letterToGPA = 4.0
-            elif letter == "+" and letterToGPA != 4.0:
-                    letterToGPA += 0.3
-            elif letter == "-":
-                    letterToGPA -= 0.3
-        gradepoints.append(letterToGPA*float(specific[0]))
-        coursecred += float(specific[0])
-    overallGPA = round(sum(gradepoints)/coursecred, 1)
+        units, letter_grade = course.split()
+        for letter in letter_grade:
+            gradepoints.append(grades[letter]*float(units))
+        total_units += float(units)
+    overallGPA = round(sum(gradepoints)/total_units, 2)
         
-    await message.channel.send("Your GPA is: "+ str(overallGPA))
+    await ctx.send("Your GPA is: "+ str(overallGPA))
 
 
 @client.command()
-#See when a user joins
 async def joined(ctx, member: discord.Member):
+    """See when a user joins discord"""
     created_at = member.created_at.strftime("%b %d, %Y")
     await ctx.send(f'{member} joined at {created_at}.')
 
 @client.command()
 #generate random response
 async def eightball(ctx, *args):
+    """
+    Generates random response for a given questions
+    Upholds CompE vs EE battle within responses
+    """
+
     for x in args:
         x.lower() 
 
@@ -191,8 +195,8 @@ async def eightball(ctx, *args):
         await ctx.send(responses[choice])
 
 @client.command()
-#toggle the countforus option on in counting game
 async def countforus(ctx):
+    """toggle the countforus option on in counting game"""
     countToggleWord = ''
     if client.countToggle:
         client.countToggle = False
@@ -203,18 +207,18 @@ async def countforus(ctx):
     await ctx.send('I will now ' + countToggleWord + 'count.')
 
 @client.command()
-#display commands
 async def info(ctx):
-    info = '''So far, here are my main commands that can be used:
-- ?guess (num1) (num2), where num1 is lower than num2, and they are space-separated.
+    """display commands"""
+    info = f'''So far, here are my main commands that can be used:
+- {COMMAND_PREFIX}guess (num1) (num2), where num1 is lower than num2, and they are space-separated.
           - With this command, you can play a guessing game. Use the command a try it out!
-- ?gpa (Course Units) (Letter Grade), (Course Units 2) (Letter Grade 2), ...
+- {COMMAND_PREFIX}gpa (Course Units) (Letter Grade), (Course Units 2) (Letter Grade 2), ...
           - Calculates your GPA with as many course as you like (ex formatting: '?gpa 3.5 A+, 4.0 B+, 3.8 C+' etc)
-- ?joined @user
+- {COMMAND_PREFIX}joined @user
           - Find out when a user joined the server! Please be mindful of pinging them...
-- ?countforus
+- {COMMAND_PREFIX}countforus
           - toggles on or off. If on, I will count one extra number after you
-- ?eightball (your question here)
+- {COMMAND_PREFIX}eightball (your question here)
           - I am all knowing. I will answer every question you provide to me'''
     await ctx.send(info)
 
@@ -230,9 +234,9 @@ async def sync(ctx):
 
 
 @client.command()
-#display rules to server
 async def display(ctx):
-     if ctx.message.author.id == 1081379977087426741:
+    """display rules to server"""
+    if ctx.message.author.id == 1081379977087426741:
             descDisp = '''**Welcome to the B2E Discord! This is a place anyone can use to discuss the B2E program, ask questions, and get involved with student life! During your time in this discord, we ask you to follow a few rules to make sure everyone has a safe space and stays happy!**
     
     If you’re new to Discord, you might find this guide helpful: https://support.discord.com/hc/en-us/articles/360045138571-Beginner-s-Guide-to-Discord
@@ -262,6 +266,8 @@ async def display(ctx):
             await new_msg.add_reaction("✅")
             await new_msg.add_reaction("📝")
             await new_msg.add_reaction("🏕️")
+    else:
+        ctx.send("Not so fast! This command is for Admin only.")
 
      
 client.run(TOKEN)
