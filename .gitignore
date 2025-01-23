@@ -2,6 +2,7 @@ token.txt
 Bot2Engg_keys_GCP.json
 .venv
 project.txt
+ip.txt
 
 **/.terraform/*
 

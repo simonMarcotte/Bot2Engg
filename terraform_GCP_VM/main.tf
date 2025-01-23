@@ -1,14 +1,17 @@
+//Configure the Google Cloud provider using the secret credentials file and project ID
 provider "google" {
   credentials = file("Bot2Engg_keys_GCP.json")
   project     = file("project.txt")
   region      = "us-west1"
 }
 
+//Create a GCP VPC network
 resource "google_compute_network" "vpc_network" {
   name                    = "bot-vpc"
   auto_create_subnetworks = "false"
 }
 
+//Create a GCP subnet
 resource "google_compute_subnetwork" "subnetwork" {
   name          = "bot-subnet"
   ip_cidr_range = "10.0.0.0/24"
@@ -16,20 +19,8 @@ resource "google_compute_subnetwork" "subnetwork" {
   network       = google_compute_network.vpc_network.self_link
 }
 
-resource "google_compute_firewall" "default-allow-https" {
-  name    = "default-allow-https"
-  network = google_compute_network.vpc_network.self_link
-
-  allow {
-    protocol = "tcp"
-    ports    = []
-  }
-
-  direction = "EGRESS"
-  source_ranges = ["0.0.0.0/0"]
-}
-
-resource "google_compute_firewall" "default-allow-ssh" {
+//Allow SSH traffic to the VM only from the IP addresses in the file
+resource "google_compute_firewall" "allow-ssh" {
   name    = "allow-ssh"
   network = google_compute_network.vpc_network.self_link
 
@@ -38,22 +29,11 @@ resource "google_compute_firewall" "default-allow-ssh" {
     ports    = ["22"]
   }
 
-  direction = "INGRESS"
-  source_ranges = ["0.0.0.0/0"]
+  direction    = "INGRESS"
+  source_ranges = file("ip.txt")
 }
 
-resource "google_compute_firewall" "allow-icmp" {
-  name    = "allow-icmp"
-  network = google_compute_network.vpc_network.self_link
-
-  allow {
-    protocol = "icmp"
-  }
-
-  direction = "EGRESS"
-  source_ranges = ["173.194.203.102"]
-}
-
+//Set up a VM instance
 resource "google_compute_instance" "bot_vm" {
   name         = "discord-bot-vm"
   machine_type = "e2-micro"  // This is a small machine type
@@ -75,6 +55,7 @@ resource "google_compute_instance" "bot_vm" {
   }
 }
 
+//NAT router gives VPC network access to the internet
 resource "google_compute_router" "nat-router" {
   name    = "nat-router"
   network = google_compute_network.vpc_network.name
